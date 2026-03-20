@@ -80,6 +80,27 @@ def get_models():
 # ENDPOINTS
 # ============================================================================
 
+@app.get("/")
+def root():
+    """Root endpoint - Shows API info and available endpoints"""
+    return {
+        "name": "Fake News & Deepfake Detection API",
+        "version": "1.0.0",
+        "status": "🟢 Online",
+        "description": "API for detecting fake news and deepfakes using machine learning",
+        "endpoints": {
+            "GET /": "This page - API info",
+            "GET /health": "Health check",
+            "GET /test": "Test endpoint with available endpoints",
+            "POST /analyze_text": "Analyze text for fake news",
+            "POST /analyze_video": "Analyze video for deepfakes",
+            "GET /docs": "Interactive API documentation (Swagger UI)",
+            "GET /redoc": "ReDoc API documentation"
+        },
+        "docs_url": "https://fake-news-deepfake-backend.onrender.com/docs",
+        "mode": "Demo mode - Full models coming soon!"
+    }
+
 @app.get("/health")
 def health_check():
     """Health check endpoint - Returns immediately, no model loading"""
