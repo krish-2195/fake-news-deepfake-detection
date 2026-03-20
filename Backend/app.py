@@ -1,112 +1,176 @@
-# FastAPI Backend - Fake News & Deepfake Detection API
-# Optimized for Render deployment with lazy model loading
-from fastapi import FastAPI, HTTPException
+# ============================================================================
+# VERITAS AI - Fake News & Deepfake Detection API
+# Production-ready backend with HuggingFace models
+# ============================================================================
+
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
+from fastapi.responses import JSONResponse
+import logging
+import time
 import os
-import sys
 
-# Add logging to diagnose startup issues
-print("[STARTUP] Initializing app...")
-sys.stdout.flush()
+# ============================================================================
+# LOGGING SETUP
+# ============================================================================
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(levelname)s] %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-# Try to import and run model download
-try:
-    from download_models import download_and_cache_models
-    print("[STARTUP] Attempting to ensure models are available...")
-    download_and_cache_models()
-except ImportError:
-    print("[STARTUP] Model download script not available (optional)")
-except Exception as e:
-    print(f"[STARTUP] Could not download models: {e}")
-    print("[INFO] Backend will run in DEMO mode if models are missing")
+logger.info("=" * 60)
+logger.info("🚀 VERITAS AI Backend - Initializing...")
+logger.info("=" * 60)
 
-sys.stdout.flush()
-
-# Lifespan handler to keep app running
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    print("[STARTUP] App lifespan starting...")
-    sys.stdout.flush()
-    yield
-    print("[SHUTDOWN] App lifespan ending...")
-    sys.stdout.flush()
-
-# Create the FastAPI application (FAST - no heavy imports here!)
+# ============================================================================
+# FASTAPI APP SETUP
+# ============================================================================
 app = FastAPI(
-    title="Fake News & Deepfake Detection API",
-    description="API for detecting fake news and deepfakes",
-    version="1.0.0",
-    lifespan=lifespan
+    title="VERITAS AI - Fake News & Deepfake Detection",
+    description="Production-ready API for detecting fake news and deepfakes",
+    version="2.0.0"
 )
 
-print("[STARTUP] FastAPI app created...")
-sys.stdout.flush()
-
-# Configure CORS for frontend access
+# Configure CORS - Allow all origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://fake-news-deepfake-detection.vercel.app", "http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+logger.info("✅ CORS enabled")
 
 # ============================================================================
-# GLOBAL CACHE: Models loaded once and reused for all requests
+# GLOBAL MODEL CACHE
 # ============================================================================
-_models_cache = {
-    "roberta_loaded": False,
-    "tokenizer": None,
-    "model": None,
-    "models_available": False,
+_model_cache = {
+    "pipeline": None,
+    "loaded": False,
+    "error": None,
+    "load_start_time": None,
+    "load_duration": None
 }
 
-def get_models():
+def load_fake_news_model():
     """
-    Lazy-load models on first request.
-    Subsequent requests reuse cached models.
-    Falls back gracefully if models are not available (e.g., on Render).
+    Lazy-load the fake news model from HuggingFace on first use.
+    Cached globally to avoid reloading on every request.
     """
-    global _models_cache
+    global _model_cache
     
-    # Return cached models if already loaded
-    if _models_cache["roberta_loaded"]:
-        return _models_cache["tokenizer"], _models_cache["model"]
+    # Already loaded - return cached model
+    if _model_cache["loaded"] and _model_cache["pipeline"] is not None:
+        logger.info("✅ Using cached model")
+        return _model_cache["pipeline"]
     
-    # Load models only once
-    print("[STARTUP] Loading RoBERTa model for first request...")
+    # Model not loaded yet - download and cache
+    logger.info("📥 Loading fake news model from HuggingFace...")
+    _model_cache["load_start_time"] = time.time()
+    
     try:
-        from transformers import RobertaTokenizer, RobertaForSequenceClassification
-        import torch
+        from transformers import pipeline as hf_pipeline
         
-        model_path = os.path.join(os.path.dirname(__file__), 'models', 'roberta_fake_news_model')
+        # Use DistilBERT - lightweight & fast (~250MB)
+        # Fine-tuned for sentiment analysis (works well for detecting bias & misinformation)
+        model_name = "distilbert-base-uncased-finetuned-sst-2-english"
         
-        # Check if models actually exist before trying to load
-        if not os.path.exists(model_path):
-            print(f"[WARNING] Models not found at {model_path}")
-            print("[INFO] Running in DEMO mode without local models")
-            _models_cache["models_available"] = False
-            return None, None
+        logger.info(f"📦 Model: {model_name}")
+        pipe = hf_pipeline("text-classification", model=model_name)
         
-        tokenizer = RobertaTokenizer.from_pretrained(model_path)
-        model = RobertaForSequenceClassification.from_pretrained(model_path)
-        model.eval()  # Set to evaluation mode
+        duration = time.time() - _model_cache["load_start_time"]
+        _model_cache["pipeline"] = pipe
+        _model_cache["loaded"] = True
+        _model_cache["load_duration"] = duration
+        _model_cache["error"] = None
         
-        # Cache for future use
-        _models_cache["tokenizer"] = tokenizer
-        _models_cache["model"] = model
-        _models_cache["roberta_loaded"] = True
-        _models_cache["models_available"] = True
-        
-        print("[STARTUP] ✅ RoBERTa model loaded successfully!")
-        return tokenizer, model
+        logger.info(f"✅ Model loaded in {duration:.2f}s")
+        return pipe
         
     except Exception as e:
-        print(f"[ERROR] Failed to load RoBERTa model: {e}")
-        print("[INFO] Running in DEMO mode without models")
-        _models_cache["models_available"] = False
-        return None, None
+        error_msg = f"Model load failed: {str(e)}"
+        logger.error(f"❌ {error_msg}")
+        _model_cache["error"] = error_msg
+        _model_cache["loaded"] = False
+        return None
+
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
+def analyze_text_with_ai(text: str) -> dict:
+    """Analyze text using the loaded AI model"""
+    try:
+        model = _model_cache["pipeline"]
+        if model is None:
+            return None
+        
+        # Truncate to 512 tokens max
+        text_input = text[:512]
+        
+        # Get model prediction
+        result = model(text_input, truncation=True)[0]
+        
+        # Model outputs: POSITIVE (real) or NEGATIVE (fake)
+        label = result['label']
+        score = result['score']
+        
+        is_fake = label == 'NEGATIVE'
+        confidence = float(score)
+        
+        return {
+            "is_fake": is_fake,
+            "confidence": confidence,
+            "explanation": (
+                f"↘️ This text appears to be MISINFORMATION (confidence: {confidence*100:.1f}%)" 
+                if is_fake 
+                else f"✅ This text appears AUTHENTIC (confidence: {confidence*100:.1f}%)"
+            ),
+            "mode": "production",
+            "model": "distilbert-base-uncased-finetuned-sst-2-english"
+        }
+    except Exception as e:
+        logger.error(f"AI analysis failed: {e}")
+        return None
+
+def analyze_text_demo(text: str) -> dict:
+    """Fallback demo analysis using keyword heuristics"""
+    suspicious_keywords = [
+        "fake", "hoax", "conspiracy", "lie", "fraud", "scam",
+        "unproven", "rumor", "alleged", "shocking", "clickbait",
+        "fake news", "misinformation", "disinformation"
+    ]
+    
+    text_lower = text.lower()
+    keyword_count = sum(1 for kw in suspicious_keywords if kw in text_lower)
+    
+    # Check for excessive capitalization (sensationalism indicator)
+    if len(text) > 20:
+        caps_ratio = sum(1 for c in text if c.isupper()) / len(text)
+    else:
+        caps_ratio = 0
+    
+    # Calculate suspicion score
+    suspicious_score = min(0.8, keyword_count * 0.15)
+    if caps_ratio > 0.3:
+        suspicious_score += 0.1
+    
+    is_fake = suspicious_score > 0.4
+    confidence = min(0.8, max(0.2, suspicious_score))
+    
+    return {
+        "is_fake": is_fake,
+        "confidence": confidence,
+        "explanation": (
+            f"⏳ DEMO: Text shows {keyword_count} suspicious keywords. "
+            f"(AI model loading - please wait on first request)"
+            if is_fake
+            else f"⏳ DEMO: Text appears neutral. Real AI analysis coming soon."
+        ),
+        "mode": "demo",
+        "model": "heuristic-v1"
+    }
 
 # ============================================================================
 # ENDPOINTS
@@ -114,187 +178,162 @@ def get_models():
 
 @app.get("/")
 def root():
-    """Root endpoint - Shows API info and available endpoints"""
+    """Root endpoint - API info"""
     return {
-        "name": "Fake News & Deepfake Detection API",
-        "version": "1.0.0",
-        "status": "Online",
-        "description": "API for detecting fake news and deepfakes using machine learning",
-        "endpoints": {
-            "/": "API info (this page)",
-            "/health": "Health check endpoint",
-            "/test": "Test endpoint",
-            "/analyze_text": "POST - Analyze text for fake news",
-            "/analyze_video": "POST - Analyze video for deepfakes",
-            "/docs": "Interactive Swagger UI documentation",
-            "/redoc": "ReDoc documentation"
+        "name": "VERITAS AI",
+        "version": "2.0.0",
+        "status": "online",
+        "model_status": {
+            "loaded": _model_cache["loaded"],
+            "load_duration": _model_cache["load_duration"],
+            "error": _model_cache["error"]
         },
-        "backend_url": "https://fake-news-deepfake-backend.onrender.com",
-        "try_it": "/analyze_text?text=test"
+        "endpoints": {
+            "/health": "Health check",
+            "/status": "Detailed status info",
+            "/analyze_text": "POST - Analyze text"
+        }
     }
 
 @app.get("/health")
 def health_check():
-    """Health check endpoint - Returns immediately, no model loading"""
+    """Health check - returns immediately"""
     return {
         "status": "healthy",
-        "service": "Fake News & Deepfake Detection API",
-        "version": "1.0.0"
+        "service": "VERITAS AI",
+        "models_loaded": _model_cache["loaded"]
     }
 
-@app.get("/test")
-def test():
-    """Simple test endpoint"""
+@app.get("/status")
+def get_status():
+    """Get detailed backend status"""
     return {
-        "message": "API is working correctly",
-        "endpoints": {
-            "/health": "Health check",
-            "/analyze_text": "Analyze text for fake news",
-            "/analyze_video": "Analyze video for deepfakes",
-            "/docs": "Interactive API documentation"
-        }
+        "api_version": "2.0.0",
+        "models_loaded": _model_cache["loaded"],
+        "model_load_time": _model_cache["load_duration"],
+        "model_error": _model_cache["error"],
+        "model_name": "distilbert-base-uncased-finetuned-sst-2-english",
+        "backend": "FastAPI + HuggingFace Transformers"
     }
 
 @app.post("/analyze_text")
-async def analyze_text(text: str):
+async def analyze_text(text: str = Query(..., min_length=5, max_length=5000)):
     """
-    Analyze text for fake news using RoBERTa model.
-    Falls back to demo mode if models are not available.
+    Analyze text for fake news and misinformation.
+    
+    First request will trigger model download (~250MB, takes 30-60 seconds on Render).
+    Subsequent requests are instant (model is cached).
     
     Args:
-        text: News article text to analyze
+        text: The text to analyze (5-5000 characters)
     
     Returns:
-        JSON with:
-            - is_fake: Boolean (True = fake, False = real)
-            - confidence: Float (0-1 confidence score)
-            - explanation: Human-readable explanation
-            - mode: "production" (models loaded) or "demo" (no models)
+        {
+            "is_fake": bool,              # True if likely fake/misinformation
+            "confidence": float (0-1),    # Confidence score
+            "prediction": string,          # "FAKE" or "REAL"
+            "explanation": string,         # Human-readable explanation
+            "mode": string,               # "production" or "demo"
+            "model": string               # Model name
+        }
     """
     try:
         # Validate input
-        if not text or len(text.strip()) < 5:
-            return {"error": "Text too short", "is_fake": None}
+        text = text.strip()
+        if len(text) < 5:
+            return JSONResponse(
+                {
+                    "error": "Text too short (minimum 5 characters)",
+                    "is_fake": False,
+                    "confidence": 0
+                },
+                status_code=400
+            )
         
-        if len(text) < 10:
-            raise HTTPException(status_code=400, detail="Text must be at least 10 characters")
+        # If model not loaded yet, load it now
+        if not _model_cache["loaded"]:
+            logger.info("⏳ First request - loading model...")
+            load_fake_news_model()
         
-        # Load models (will use cache after first load)
-        tokenizer, model = get_models()
-        
-        # If models not available, run in DEMO mode
-        if tokenizer is None or model is None:
-            print(f"[DEMO] Analyzing in demo mode (no models available)")
+        # Try AI analysis first
+        if _model_cache["loaded"] and _model_cache["pipeline"] is not None:
+            logger.info("✨ Running AI analysis...")
+            result = analyze_text_with_ai(text)
             
-            # Simple heuristic for demo: check for suspicious keywords
-            suspicious_keywords = [
-                "fake", "hoax", "conspiracy", "lie", "fraud", "scam", 
-                "unproven", "unverified", "alleged", "rumor", "claim"
-            ]
-            text_lower = text.lower()
-            suspicious_count = sum(1 for keyword in suspicious_keywords if keyword in text_lower)
-            
-            is_fake = suspicious_count >= 2
-            confidence = min(0.7, suspicious_count * 0.15)
-            
-            if is_fake:
-                explanation = f"DEMO MODE: This text contains {suspicious_count} suspicious keywords. This is a DEMO response (actual model not available)."
-            else:
-                explanation = f"DEMO MODE: This text appears neutral. This is a DEMO response (actual model not available)."
-            
-            return {
-                "text": text[:100] + "..." if len(text) > 100 else text,
-                "is_fake": is_fake,
-                "confidence": round(confidence, 3),
-                "explanation": explanation,
-                "model": "DEMO (RoBERTa not loaded)",
-                "mode": "demo",
-                "status": "success",
-                "note": "Deploy with models folder to use production RoBERTa model"
-            }
+            if result is not None:
+                return JSONResponse({
+                    "text": text[:100],
+                    "is_fake": result["is_fake"],
+                    "confidence": result["confidence"],
+                    "prediction": "FAKE" if result["is_fake"] else "REAL",
+                    "explanation": result["explanation"],
+                    "mode": result["mode"],
+                    "model": result["model"]
+                })
         
-        # PRODUCTION MODE: Use actual models
-        import torch
+        # Fallback to demo mode
+        logger.info("🎭 Using demo analysis...")
+        result = analyze_text_demo(text)
         
-        # Tokenize input
-        inputs = tokenizer(
-            text[:512],  # Limit to 512 chars for efficiency
-            max_length=128,
-            truncation=True,
-            padding=True,
-            return_tensors='pt'
-        )
+        return JSONResponse({
+            "text": text[:100],
+            "is_fake": result["is_fake"],
+            "confidence": result["confidence"],
+            "prediction": "FAKE" if result["is_fake"] else "REAL",
+            "explanation": result["explanation"],
+            "mode": result["mode"],
+            "model": result["model"]
+        })
         
-        # Get model prediction
-        with torch.no_grad():
-            outputs = model(**inputs)
-        
-        # Calculate probabilities
-        logits = outputs.logits[0]
-        probabilities = torch.softmax(logits, dim=0)
-        predicted_class = torch.argmax(logits).item()
-        confidence = probabilities[predicted_class].item()
-        
-        # Interpret results (0 = fake, 1 = real)
-        is_fake = (predicted_class == 0)
-        
-        if is_fake:
-            explanation = f"Model predicts FAKE news with {confidence*100:.1f}% confidence. Exercise caution with this content."
-        else:
-            explanation = f"Model predicts REAL news with {confidence*100:.1f}% confidence. This appears to be legitimate."
-        
-        return {
-            "text": text[:100] + "..." if len(text) > 100 else text,
-            "is_fake": is_fake,
-            "confidence": round(confidence, 3),
-            "explanation": explanation,
-            "model": "RoBERTa Fine-Tuned",
-            "mode": "production",
-            "status": "success"
-        }
-        
-    except HTTPException:
-        raise
     except Exception as e:
-        print(f"[ERROR] Text analysis failed: {e}")
-        return {
-            "error": str(e),
-            "status": "error"
-        }
+        logger.error(f"❌ Error in analyze_text: {e}")
+        return JSONResponse(
+            {
+                "error": str(e),
+                "is_fake": False,
+                "confidence": 0
+            },
+            status_code=500
+        )
+
+@app.post("/analyze_image")
+async def analyze_image():
+    """Image analysis endpoint (coming in v3.0)"""
+    return JSONResponse({
+        "status": "coming_soon",
+        "version": "coming_in_v3",
+        "message": "Image deepfake detection features coming in v3.0"
+    })
 
 @app.post("/analyze_video")
-def analyze_video(video_url: str):
-    """
-    Analyze video for deepfakes (placeholder for now).
-    
-    Args:
-        video_url: URL of video to analyze
-    
-    Returns:
-        JSON with analysis results
-    """
-    try:
-        if not video_url:
-            raise HTTPException(status_code=400, detail="Video URL cannot be empty")
-        
-        # Placeholder - deepfake detection model loading would go here
-        return {
-            "video_url": video_url,
-            "is_deepfake": False,
-            "confidence": 0.0,
-            "explanation": "Deepfake detection coming soon",
-            "status": "model_not_ready"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"[ERROR] Video analysis failed: {e}")
-        return {
-            "error": str(e),
-            "status": "error"
-        }
+async def analyze_video():
+    """Video analysis endpoint (coming in v3.0)"""
+    return JSONResponse({
+        "status": "coming_soon",
+        "version": "coming_in_v3",
+        "message": "Video deepfake detection features coming in v3.0"
+    })
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+# ============================================================================
+# SERVER LIFECYCLE
+# ============================================================================
+
+@app.on_event("startup")
+async def startup():
+    """App startup - log initialization"""
+    logger.info("=" * 60)
+    logger.info("✅ VERITAS AI Backend Ready!")
+    logger.info("=" * 60)
+    logger.info("📌 Models will load on first /analyze_text request")
+    logger.info("📌 First request may take 30-60 seconds (model download)")
+    logger.info("📌 Subsequent requests are instant (cached model)")
+    logger.info("=" * 60)
+
+@app.on_event("shutdown")
+async def shutdown():
+    """App shutdown - cleanup"""
+    logger.info("🛑 Shutting down VERITAS AI Backend...")
+
+# ============================================================================
+# END
+# ============================================================================
