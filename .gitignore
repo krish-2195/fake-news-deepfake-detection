@@ -1,0 +1,33 @@
+# Large model files
+mesonet_deepfake_detector.h5
+*.h5
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Virtual environments
+venv/
+.venv/
+
+# Environment variables
+.env
+.env.local
+
+# Node modules
+node_modules/
+
+# Build outputs
+.next/
+build/
+dist/
+
+# IDE
+.vscode/
+.idea/
+# Model files (too large for GitHub)
+*.safetensors
+Backend/models/
+mesonet_backend.py
