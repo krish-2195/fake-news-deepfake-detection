@@ -27,13 +27,14 @@ _models_cache = {
     "roberta_loaded": False,
     "tokenizer": None,
     "model": None,
+    "models_available": False,
 }
 
 def get_models():
     """
     Lazy-load models on first request.
     Subsequent requests reuse cached models.
-    This keeps startup fast while models are ready when needed.
+    Falls back gracefully if models are not available (e.g., on Render).
     """
     global _models_cache
     
@@ -49,6 +50,13 @@ def get_models():
         
         model_path = os.path.join(os.path.dirname(__file__), 'models', 'roberta_fake_news_model')
         
+        # Check if models actually exist before trying to load
+        if not os.path.exists(model_path):
+            print(f"[WARNING] Models not found at {model_path}")
+            print("[INFO] Running in DEMO mode without local models")
+            _models_cache["models_available"] = False
+            return None, None
+        
         tokenizer = RobertaTokenizer.from_pretrained(model_path)
         model = RobertaForSequenceClassification.from_pretrained(model_path)
         model.eval()  # Set to evaluation mode
@@ -57,13 +65,16 @@ def get_models():
         _models_cache["tokenizer"] = tokenizer
         _models_cache["model"] = model
         _models_cache["roberta_loaded"] = True
+        _models_cache["models_available"] = True
         
         print("[STARTUP] ✅ RoBERTa model loaded successfully!")
         return tokenizer, model
         
     except Exception as e:
         print(f"[ERROR] Failed to load RoBERTa model: {e}")
-        raise HTTPException(status_code=500, detail=f"Model loading failed: {str(e)}")
+        print("[INFO] Running in DEMO mode without models")
+        _models_cache["models_available"] = False
+        return None, None
 
 # ============================================================================
 # ENDPOINTS
@@ -95,6 +106,7 @@ def test():
 def analyze_text(text: str):
     """
     Analyze text for fake news using RoBERTa model.
+    Falls back to demo mode if models are not available.
     
     Args:
         text: News article text to analyze
@@ -104,6 +116,7 @@ def analyze_text(text: str):
             - is_fake: Boolean (True = fake, False = real)
             - confidence: Float (0-1 confidence score)
             - explanation: Human-readable explanation
+            - mode: "production" (models loaded) or "demo" (no models)
     """
     try:
         # Validate input
@@ -116,7 +129,38 @@ def analyze_text(text: str):
         # Load models (will use cache after first load)
         tokenizer, model = get_models()
         
-        # Import here to avoid startup dependency
+        # If models not available, run in DEMO mode
+        if tokenizer is None or model is None:
+            print(f"[DEMO] Analyzing in demo mode (no models available)")
+            
+            # Simple heuristic for demo: check for suspicious keywords
+            suspicious_keywords = [
+                "fake", "hoax", "conspiracy", "lie", "fraud", "scam", 
+                "unproven", "unverified", "alleged", "rumor", "claim"
+            ]
+            text_lower = text.lower()
+            suspicious_count = sum(1 for keyword in suspicious_keywords if keyword in text_lower)
+            
+            is_fake = suspicious_count >= 2
+            confidence = min(0.7, suspicious_count * 0.15)
+            
+            if is_fake:
+                explanation = f"DEMO MODE: This text contains {suspicious_count} suspicious keywords. This is a DEMO response (actual model not available)."
+            else:
+                explanation = f"DEMO MODE: This text appears neutral. This is a DEMO response (actual model not available)."
+            
+            return {
+                "text": text[:100] + "..." if len(text) > 100 else text,
+                "is_fake": is_fake,
+                "confidence": round(confidence, 3),
+                "explanation": explanation,
+                "model": "DEMO (RoBERTa not loaded)",
+                "mode": "demo",
+                "status": "success",
+                "note": "Deploy with models folder to use production RoBERTa model"
+            }
+        
+        # PRODUCTION MODE: Use actual models
         import torch
         
         # Tokenize input
@@ -152,6 +196,7 @@ def analyze_text(text: str):
             "confidence": round(confidence, 3),
             "explanation": explanation,
             "model": "RoBERTa Fine-Tuned",
+            "mode": "production",
             "status": "success"
         }
         
