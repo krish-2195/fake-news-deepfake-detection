@@ -7,6 +7,9 @@ import { useState } from 'react';
 // Import axios for making HTTP requests to the backend API
 import axios from 'axios';
 
+// Get backend URL from environment variable
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+
 // Main component - the home page of the app
 export default function Home() {
   // State to store the text the user enters in the textarea
@@ -42,10 +45,10 @@ export default function Home() {
     setLoading(true);
 
     try {
-      // Send POST request to FastAPI backend at http://localhost:8000/analyze_text
+      // Send POST request to FastAPI backend at BACKEND_URL/analyze_text
       // The ?text=... is passed as a query parameter
       const response = await axios.post(
-        'http://localhost:8000/analyze_text',
+        `${BACKEND_URL}/analyze_text`,
         null,
         { params: { text } }
       );
@@ -55,7 +58,7 @@ export default function Home() {
     } catch (error) {
       // If the backend is not running, show an alert
       console.error('Error:', error);
-      alert('Backend connection failed. Make sure FastAPI is running on localhost:8000');
+      alert('Backend connection failed. Make sure the backend is running.');
     }
 
     // Stop showing loading state
@@ -86,7 +89,7 @@ export default function Home() {
       formData.append('file', imageFile);
 
       const response = await axios.post(
-        'http://localhost:8000/analyze_image',
+        `${BACKEND_URL}/analyze_image`,
         formData,
         {
           headers: {
@@ -128,7 +131,7 @@ export default function Home() {
       formData.append('file', videoFile);
 
       const response = await axios.post(
-        'http://localhost:8000/analyze_video',
+        `${BACKEND_URL}/analyze_video`,
         formData,
         {
           headers: {
