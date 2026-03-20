@@ -1,45 +1,197 @@
-# Minimal FastAPI app - just to get the server running on Render
-from fastapi import FastAPI
+# FastAPI Backend - Fake News & Deepfake Detection API
+# Optimized for Render deployment with lazy model loading
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+import os
 
-# Create the FastAPI application
-app = FastAPI(title="Fake News & Deepfake Detection API")
+# Create the FastAPI application (FAST - no heavy imports here!)
+app = FastAPI(
+    title="Fake News & Deepfake Detection API",
+    description="API for detecting fake news and deepfakes",
+    version="1.0.0"
+)
 
-# Configure CORS  
+# Configure CORS for frontend access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for testing
+    allow_origins=["*"],  # Allow all origins (can restrict later)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ENDPOINT 1: Health Check
+# ============================================================================
+# GLOBAL CACHE: Models loaded once and reused for all requests
+# ============================================================================
+_models_cache = {
+    "roberta_loaded": False,
+    "tokenizer": None,
+    "model": None,
+}
+
+def get_models():
+    """
+    Lazy-load models on first request.
+    Subsequent requests reuse cached models.
+    This keeps startup fast while models are ready when needed.
+    """
+    global _models_cache
+    
+    # Return cached models if already loaded
+    if _models_cache["roberta_loaded"]:
+        return _models_cache["tokenizer"], _models_cache["model"]
+    
+    # Load models only once
+    print("[STARTUP] Loading RoBERTa model for first request...")
+    try:
+        from transformers import RobertaTokenizer, RobertaForSequenceClassification
+        import torch
+        
+        model_path = os.path.join(os.path.dirname(__file__), 'models', 'roberta_fake_news_model')
+        
+        tokenizer = RobertaTokenizer.from_pretrained(model_path)
+        model = RobertaForSequenceClassification.from_pretrained(model_path)
+        model.eval()  # Set to evaluation mode
+        
+        # Cache for future use
+        _models_cache["tokenizer"] = tokenizer
+        _models_cache["model"] = model
+        _models_cache["roberta_loaded"] = True
+        
+        print("[STARTUP] ✅ RoBERTa model loaded successfully!")
+        return tokenizer, model
+        
+    except Exception as e:
+        print(f"[ERROR] Failed to load RoBERTa model: {e}")
+        raise HTTPException(status_code=500, detail=f"Model loading failed: {str(e)}")
+
+# ============================================================================
+# ENDPOINTS
+# ============================================================================
+
 @app.get("/health")
 def health_check():
-    """Check if backend is running"""
-    return {"status": "API is running"}
+    """Health check endpoint - Returns immediately, no model loading"""
+    return {
+        "status": "healthy",
+        "service": "Fake News & Deepfake Detection API",
+        "version": "1.0.0"
+    }
 
-# ENDPOINT 2: Simple test endpoint
 @app.get("/test")
 def test():
     """Simple test endpoint"""
-    return {"message": "API is working correctly"}
+    return {
+        "message": "API is working correctly",
+        "endpoints": {
+            "/health": "Health check",
+            "/analyze_text": "Analyze text for fake news",
+            "/analyze_video": "Analyze video for deepfakes",
+            "/docs": "Interactive API documentation"
+        }
+    }
 
-# ENDPOINT 3: Analyze text (basic)
 @app.post("/analyze_text")
 def analyze_text(text: str):
-    """Analyze text (placeholder)"""
+    """
+    Analyze text for fake news using RoBERTa model.
+    
+    Args:
+        text: News article text to analyze
+    
+    Returns:
+        JSON with:
+            - is_fake: Boolean (True = fake, False = real)
+            - confidence: Float (0-1 confidence score)
+            - explanation: Human-readable explanation
+    """
     try:
-        from models import predict_fake_news
-        result = predict_fake_news(text)
+        # Validate input
+        if not text or len(text.strip()) == 0:
+            raise HTTPException(status_code=400, detail="Text cannot be empty")
+        
+        if len(text) < 10:
+            raise HTTPException(status_code=400, detail="Text must be at least 10 characters")
+        
+        # Load models (will use cache after first load)
+        tokenizer, model = get_models()
+        
+        # Import here to avoid startup dependency
+        import torch
+        
+        # Tokenize input
+        inputs = tokenizer(
+            text[:512],  # Limit to 512 chars for efficiency
+            max_length=128,
+            truncation=True,
+            padding=True,
+            return_tensors='pt'
+        )
+        
+        # Get model prediction
+        with torch.no_grad():
+            outputs = model(**inputs)
+        
+        # Calculate probabilities
+        logits = outputs.logits[0]
+        probabilities = torch.softmax(logits, dim=0)
+        predicted_class = torch.argmax(logits).item()
+        confidence = probabilities[predicted_class].item()
+        
+        # Interpret results (0 = fake, 1 = real)
+        is_fake = (predicted_class == 0)
+        
+        if is_fake:
+            explanation = f"Model predicts FAKE news with {confidence*100:.1f}% confidence. Exercise caution with this content."
+        else:
+            explanation = f"Model predicts REAL news with {confidence*100:.1f}% confidence. This appears to be legitimate."
+        
         return {
-            "text": text,
-            "is_fake": result["is_fake"],
-            "confidence": result["confidence"],
-            "explanation": result["explanation"]
+            "text": text[:100] + "..." if len(text) > 100 else text,
+            "is_fake": is_fake,
+            "confidence": round(confidence, 3),
+            "explanation": explanation,
+            "model": "RoBERTa Fine-Tuned",
+            "status": "success"
         }
+        
+    except HTTPException:
+        raise
     except Exception as e:
+        print(f"[ERROR] Text analysis failed: {e}")
+        return {
+            "error": str(e),
+            "status": "error"
+        }
+
+@app.post("/analyze_video")
+def analyze_video(video_url: str):
+    """
+    Analyze video for deepfakes (placeholder for now).
+    
+    Args:
+        video_url: URL of video to analyze
+    
+    Returns:
+        JSON with analysis results
+    """
+    try:
+        if not video_url:
+            raise HTTPException(status_code=400, detail="Video URL cannot be empty")
+        
+        # Placeholder - deepfake detection model loading would go here
+        return {
+            "video_url": video_url,
+            "is_deepfake": False,
+            "confidence": 0.0,
+            "explanation": "Deepfake detection coming soon",
+            "status": "model_not_ready"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Video analysis failed: {e}")
         return {
             "error": str(e),
             "status": "error"
