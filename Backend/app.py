@@ -10,6 +10,19 @@ import sys
 print("[STARTUP] Initializing app...")
 sys.stdout.flush()
 
+# Try to import and run model download
+try:
+    from download_models import download_and_cache_models
+    print("[STARTUP] Attempting to ensure models are available...")
+    download_and_cache_models()
+except ImportError:
+    print("[STARTUP] Model download script not available (optional)")
+except Exception as e:
+    print(f"[STARTUP] Could not download models: {e}")
+    print("[INFO] Backend will run in DEMO mode if models are missing")
+
+sys.stdout.flush()
+
 # Lifespan handler to keep app running
 @asynccontextmanager
 async def lifespan(app: FastAPI):

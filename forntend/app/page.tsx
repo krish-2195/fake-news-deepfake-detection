@@ -5,6 +5,14 @@ import axios from 'axios';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
 
+// Color palette
+const colors = {
+  accent1: '#00ff88',   // Neon Green
+  accent2: '#ff006e',   // Hot Pink
+  accent3: '#00d9ff',   // Cyan
+  accent4: '#ff4d00',   // Orange
+};
+
 // Spinner component
 function Spinner() {
   return (
@@ -146,8 +154,8 @@ export default function Home() {
         onDrop={handleDrop}
         className={`relative rounded-xl border-2 border-dashed transition-all duration-300 p-8 text-center cursor-pointer ${
           isDragging
-            ? 'border-cyan-400 bg-cyan-400/10 shadow-lg shadow-cyan-400/30'
-            : 'border-cyan-400/30 bg-white/5 hover:border-cyan-400/60'
+            ? 'border-green-400 bg-green-400/10 shadow-lg shadow-green-400/30'
+            : 'border-green-400/30 bg-white/5 hover:border-green-400/60'
         }`}
       >
         <div className="relative z-10">{children}</div>
@@ -159,28 +167,29 @@ export default function Home() {
     <div className="min-h-screen w-full bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 overflow-x-hidden">
       {/* Animated background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-cyan-500/10 rounded-full filter blur-3xl animate-pulse"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full filter blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-green-500/15 rounded-full filter blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-pink-500/15 rounded-full filter blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+        <div className="absolute top-3/4 right-1/3 w-96 h-96 bg-orange-500/10 rounded-full filter blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
       </div>
 
       <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
         {/* Header */}
         <div className="text-center mb-16 w-full">
           <div className="inline-block mb-6">
-            <div className="text-6xl md:text-7xl font-black mb-3 bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent drop-shadow-lg">
+            <div className="text-6xl md:text-7xl font-black mb-3 bg-gradient-to-r from-cyan-300 via-pink-400 to-orange-400 bg-clip-text text-transparent drop-shadow-lg animate-pulse" style={{animationDuration: '3s'}}>
               VERITAS
             </div>
-            <div className="text-xs md:text-sm font-mono text-cyan-400 tracking-widest">Truth Detection System</div>
+            <div className="text-xs md:text-sm font-mono text-green-400 tracking-widest">Truth Detection System</div>
           </div>
-          <p className="text-gray-400 max-w-3xl mx-auto text-sm md:text-base leading-relaxed">
+          <p className="text-gray-300 max-w-3xl mx-auto text-sm md:text-base leading-relaxed">
             AI-powered detection of fake news and deepfake content
           </p>
         </div>
 
         {/* Main card */}
         <div className="relative w-full">
-          <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 rounded-3xl blur-2xl"></div>
-          <div className="relative w-full bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-3xl border border-white/20 rounded-3xl p-8 md:p-12 shadow-2xl">
+          <div className="absolute -inset-1 bg-gradient-to-r from-green-500/30 via-pink-500/30 to-orange-500/30 rounded-3xl blur-2xl"></div>
+          <div className="relative w-full bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-3xl border border-green-500/30 rounded-3xl p-8 md:p-12 shadow-2xl hover:border-green-500/50 transition-all duration-500">
             <div className="relative z-10">
               {/* Tabs */}
               <div className="flex gap-2 md:gap-6 mb-10 border-b border-white/10 pb-6 overflow-x-auto w-full">
@@ -199,8 +208,8 @@ export default function Home() {
                     }}
                     className={`px-6 py-3 text-sm md:text-base font-semibold whitespace-nowrap transition-all duration-300 rounded-lg ${
                       activeTab === tab.id
-                        ? 'text-cyan-400 border-b-2 border-cyan-400 bg-cyan-400/10 shadow-lg shadow-cyan-400/20'
-                        : 'text-gray-400 hover:text-gray-300 border-b-2 border-transparent hover:border-cyan-400/30'
+                        ? 'text-green-300 border-b-2 border-green-400 bg-green-400/10 shadow-lg shadow-green-400/20'
+                        : 'text-gray-400 hover:text-gray-300 border-b-2 border-transparent hover:border-green-400/30'
                     }`}
                   >
                     {tab.label}
@@ -211,18 +220,18 @@ export default function Home() {
               {/* Text Tab */}
               {activeTab === 'text' && (
                 <div className="space-y-6 w-full">
-                  <label className="block text-sm font-semibold text-cyan-400 mb-4 uppercase tracking-widest">Analyze News or Article</label>
+                  <label className="block text-sm font-semibold text-green-400 mb-4 uppercase tracking-widest">Analyze News or Article</label>
                   <textarea
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     placeholder="Paste your news article, social media post, or any text here..."
-                    className="w-full p-6 rounded-xl bg-white/5 border border-white/20 text-white placeholder-gray-500 focus:outline-none focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-400/30 transition-all duration-300 resize-none text-base"
+                    className="w-full p-6 rounded-xl bg-white/5 border border-white/20 text-white placeholder-gray-500 focus:outline-none focus:border-green-400/70 focus:ring-2 focus:ring-green-400/30 transition-all duration-300 resize-none text-base"
                     rows={8}
                   />
                   <button
                     onClick={handleAnalyzeText}
                     disabled={loading || !text.trim()}
-                    className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold py-4 px-8 rounded-xl transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-3 shadow-xl shadow-cyan-500/40 hover:shadow-cyan-600/50 text-lg"
+                    className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold py-4 px-8 rounded-xl transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-3 shadow-xl shadow-green-500/40 hover:shadow-green-600/50 text-lg"
                   >
                     {loading ? (
                       <>
@@ -268,7 +277,7 @@ export default function Home() {
                     />
                     <label htmlFor="image-input" className="cursor-pointer block">
                       <div className="text-6xl mb-4">🖼️</div>
-                      <p className="text-base font-semibold text-cyan-400 mb-2">Drop image here or click to upload</p>
+                      <p className="text-base font-semibold text-green-400 mb-2">Drop image here or click to upload</p>
                       <p className="text-sm text-gray-500">PNG, JPG, WebP up to 10MB</p>
                     </label>
                   </DragDropArea>
@@ -278,7 +287,7 @@ export default function Home() {
                       <button
                         onClick={handleAnalyzeImage}
                         disabled={imageLoading}
-                        className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold py-4 px-8 rounded-xl transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-3 shadow-xl shadow-cyan-500/40 text-lg"
+                        className="w-full bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold py-4 px-8 rounded-xl transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-3 shadow-xl shadow-pink-500/40 text-lg"
                       >
                         {imageLoading ? (
                           <>
@@ -326,7 +335,7 @@ export default function Home() {
                     />
                     <label htmlFor="video-input" className="cursor-pointer block">
                       <div className="text-6xl mb-4">🎬</div>
-                      <p className="text-base font-semibold text-cyan-400 mb-2">Drop video here or click to upload</p>
+                      <p className="text-base font-semibold text-orange-400 mb-2">Drop video here or click to upload</p>
                       <p className="text-sm text-gray-500">MP4, WebM up to 100MB (may take 1-2 minutes)</p>
                     </label>
                   </DragDropArea>
@@ -340,7 +349,7 @@ export default function Home() {
                       <button
                         onClick={handleAnalyzeVideo}
                         disabled={videoLoading}
-                        className="w-full bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold py-4 px-8 rounded-xl transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-3 shadow-xl shadow-cyan-500/40 text-lg"
+                        className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold py-4 px-8 rounded-xl transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-3 shadow-xl shadow-orange-500/40 text-lg"
                       >
                         {videoLoading ? (
                           <>
@@ -381,7 +390,7 @@ export default function Home() {
         {/* Footer */}
         <div className="text-center mt-16 text-gray-500 text-xs w-full">
           <p className="font-mono">
-            Powered by AI • Backend: <span className="text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer">{BACKEND_URL}</span>
+            Powered by AI • Backend: <span className="text-green-400 hover:text-green-300 transition-colors cursor-pointer">{BACKEND_URL}</span>
           </p>
         </div>
       </div>
