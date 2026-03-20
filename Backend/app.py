@@ -39,60 +39,92 @@ def load_models():
         logger.info("⏳ Loading sentiment analyzer...")
         sentiment_pipeline = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english", device=-1)
         STATUS["sentiment_ready"] = True
-        logger.info("✅ Sentiment analyzer ready")
+        logger.info("✅ Sentiment analyzer loaded")
     except Exception as e:
-        logger.error(f"❌ Sentiment model failed: {e}")
+        logger.error(f"❌ Sentiment model failed: {str(e)}")
         STATUS["sentiment_ready"] = False
 
     try:
         logger.info("⏳ Loading text classifier...")
         fake_news_model = pipeline("text-classification", model="distilbert-base-uncased", device=-1)
         STATUS["text_analysis_ready"] = True
-        logger.info("✅ Text classifier ready")
+        logger.info("✅ Text classifier loaded")
     except Exception as e:
-        logger.error(f"❌ Text model failed: {e}")
+        logger.error(f"❌ Text model failed: {str(e)}")
         STATUS["text_analysis_ready"] = False
 
-    logger.info(f"📊 Models loaded. Status: {STATUS}")
+    logger.info(f"✨ Model loading complete. Status: {STATUS}")
 
 
 @app.on_event("startup")
 async def startup():
     """Initialize on startup"""
-    logger.info("=" * 60)
     logger.info("🚀 VERITAS AI Starting...")
-    logger.info("=" * 60)
-    load_models()
-    logger.info("=" * 60)
+    logger.info("Loading models in background (non-blocking)...")
+    # Don't load models synchronously - causes timeout on Render
+    # Load lazily on first request instead
 
 
 @app.get("/")
 def root():
-    return {"app": "VERITAS AI", "version": "2.0.0", "status": STATUS}
+    """Root endpoint - returns immediately"""
+    return {
+        "app": "VERITAS AI",
+        "version": "2.0.0", 
+        "status": "online",
+        "models": STATUS,
+        "endpoints": {
+            "GET /health": "Health check",
+            "GET /status": "Model status",
+            "POST /analyze_text": "Analyze text for fake news"
+        }
+    }
 
 
 @app.get("/health")
 def health():
-    return {"status": "healthy", "models": STATUS}
+    """Health check - always responds successfully even if models aren't loaded"""
+    return {"status": "healthy", "service": "VERITAS AI", "models": STATUS}
 
 
 @app.get("/status")
 def get_status():
-    return {"server": "running", "models": STATUS}
+    """Get detailed backend status"""
+    return {
+        "server": "running",
+        "models": STATUS,
+        "text_analysis_ready": STATUS.get("text_analysis_ready", False),
+        "sentiment_ready": STATUS.get("sentiment_ready", False),
+    }
+
+
+def ensure_models_loaded():
+    """Lazily load models on first request"""
+    global sentiment_pipeline, fake_news_model, STATUS
+    
+    if STATUS.get("sentiment_ready") and STATUS.get("text_analysis_ready"):
+        return True  # Already loaded
+    
+    logger.info("⏳ Lazy-loading models...")
+    load_models()
+    return STATUS.get("sentiment_ready", False)
 
 
 @app.post("/analyze_text")
 async def analyze_text(text: str = Query(..., min_length=5, max_length=5000)):
     """Analyze text for fake news"""
     try:
+        # Ensure models are loaded (lazy-load on first request)
+        ensure_models_loaded()
+        
         if not sentiment_pipeline or not STATUS.get("sentiment_ready"):
             return JSONResponse({
                 "text": text[:100],
                 "is_fake": False,
                 "confidence": 0.5,
-                "prediction": "ERROR",
-                "mode": "error",
-                "error": "Model loading - try again in 30 seconds"
+                "prediction": "LOADING",
+                "mode": "loading",
+                "error": "Models loading on first request - please try again in 30 seconds"
             }, status_code=202)
 
         # Truncate for performance
