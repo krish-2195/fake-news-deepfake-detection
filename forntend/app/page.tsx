@@ -275,15 +275,6 @@ export default function Home() {
                       )}
                     </div>
                   </button>
-                    {loading ? (
-                      <>
-                        <Spinner />
-                        Analyzing...
-                      </>
-                    ) : (
-                      '⚡ Analyze Now'
-                    )}
-                  </button>
                   {result && (
                     <div className="mt-10 pt-8 border-t border-slate-700/60 animate-fade-in">
                       <h3 className="text-lg font-semibold text-slate-200 mb-6">Analysis Results</h3>
