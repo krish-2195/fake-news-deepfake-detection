@@ -33,7 +33,7 @@ sys.stdout.flush()
 # Configure CORS for frontend access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins (can restrict later)
+    allow_origins=["https://fake-news-deepfake-detection.vercel.app", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -143,7 +143,7 @@ def test():
     }
 
 @app.post("/analyze_text")
-def analyze_text(text: str):
+async def analyze_text(text: str):
     """
     Analyze text for fake news using RoBERTa model.
     Falls back to demo mode if models are not available.
@@ -160,8 +160,8 @@ def analyze_text(text: str):
     """
     try:
         # Validate input
-        if not text or len(text.strip()) == 0:
-            raise HTTPException(status_code=400, detail="Text cannot be empty")
+        if not text or len(text.strip()) < 5:
+            return {"error": "Text too short", "is_fake": None}
         
         if len(text) < 10:
             raise HTTPException(status_code=400, detail="Text must be at least 10 characters")
