@@ -86,19 +86,19 @@ def root():
     return {
         "name": "Fake News & Deepfake Detection API",
         "version": "1.0.0",
-        "status": "🟢 Online",
+        "status": "Online",
         "description": "API for detecting fake news and deepfakes using machine learning",
         "endpoints": {
-            "GET /": "This page - API info",
-            "GET /health": "Health check",
-            "GET /test": "Test endpoint with available endpoints",
-            "POST /analyze_text": "Analyze text for fake news",
-            "POST /analyze_video": "Analyze video for deepfakes",
-            "GET /docs": "Interactive API documentation (Swagger UI)",
-            "GET /redoc": "ReDoc API documentation"
+            "/": "API info (this page)",
+            "/health": "Health check endpoint",
+            "/test": "Test endpoint",
+            "/analyze_text": "POST - Analyze text for fake news",
+            "/analyze_video": "POST - Analyze video for deepfakes",
+            "/docs": "Interactive Swagger UI documentation",
+            "/redoc": "ReDoc documentation"
         },
-        "docs_url": "https://fake-news-deepfake-backend.onrender.com/docs",
-        "mode": "Demo mode - Full models coming soon!"
+        "backend_url": "https://fake-news-deepfake-backend.onrender.com",
+        "try_it": "/analyze_text?text=test"
     }
 
 @app.get("/health")
