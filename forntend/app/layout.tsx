@@ -13,9 +13,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "VERITAS - Fake News & Deepfake Detector",
-  description: "AI-powered detection of fake news and deepfake content. Advanced analysis using machine learning.",
-  keywords: "fake news, deepfake, detection, AI, machine learning",
+  title: "VERITAS - Advanced Fake News & Deepfake Detection",
+  description: "Enterprise-grade AI-powered detection system for fake news and deepfake content. Analyze text, images, and videos with advanced machine learning.",
+  keywords: "fake news detection, deepfake detector, AI analysis, machine learning, content verification",
+  viewport: "width=device-width, initial-scale=1",
+  openGraph: {
+    title: "VERITAS - Fake News & Deepfake Detector",
+    description: "Advanced AI detection for fake news and deepfakes",
+  },
 };
 
 export default function RootLayout({
@@ -25,8 +30,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark scroll-smooth">
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75' fill='%2300d9ff'>V</text></svg>" />
+      </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-950 text-white`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100`}
       >
         {children}
       </body>
