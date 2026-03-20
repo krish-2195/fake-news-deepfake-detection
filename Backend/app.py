@@ -2,14 +2,33 @@
 # Optimized for Render deployment with lazy model loading
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 import os
+import sys
+
+# Add logging to diagnose startup issues
+print("[STARTUP] Initializing app...")
+sys.stdout.flush()
+
+# Lifespan handler to keep app running
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("[STARTUP] App lifespan starting...")
+    sys.stdout.flush()
+    yield
+    print("[SHUTDOWN] App lifespan ending...")
+    sys.stdout.flush()
 
 # Create the FastAPI application (FAST - no heavy imports here!)
 app = FastAPI(
     title="Fake News & Deepfake Detection API",
     description="API for detecting fake news and deepfakes",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
+
+print("[STARTUP] FastAPI app created...")
+sys.stdout.flush()
 
 # Configure CORS for frontend access
 app.add_middleware(
