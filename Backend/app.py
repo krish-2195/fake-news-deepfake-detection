@@ -16,26 +16,34 @@ app = FastAPI(title="Fake News & Deepfake Detection API")
 # Without this, browser security would block requests from different origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Only allow requests from React frontend
+    allow_origins=["http://localhost:3000", "http://localhost:3000", "*"],  # Allow React frontend + testing
     allow_credentials=True,
     allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
     allow_headers=["*"],  # Allow all headers
 )
 
-# WHAT IT DOES: Loads all required libraries and the trained MesoNet model at startup
+# Import heavy libraries ONLY when needed (lazy loading)
+# This prevents startup timeout on Render
 import cv2                                    # Image/video processing
 import numpy as np                            # Numerical operations
-from tensorflow import keras                  # Deep learning
 import tempfile                               # Create temp files for videos
 from typing import Dict, List, Tuple         # Type hints for clarity
 
-# Load the trained model ONCE at startup (not every request!)
-try:
-    mesonet_model = keras.models.load_model("../mesonet_deepfake_detector.h5")
-    print("✅ MesoNet model loaded successfully")
-except Exception as e:
-    print(f"⚠️ Warning: MesoNet model not loaded: {e}")
-    mesonet_model = None
+# Lazy load models - only load when first request comes in
+mesonet_model = None
+
+def get_mesonet_model():
+    """Lazy load MesoNet model only when needed"""
+    global mesonet_model
+    if mesonet_model is None:
+        try:
+            from tensorflow import keras
+            mesonet_model = keras.models.load_model("../mesonet_deepfake_detector.h5")
+            print("✅ MesoNet model loaded successfully")
+        except Exception as e:
+            print(f"⚠️ Warning: MesoNet model not loaded: {e}")
+            mesonet_model = None
+    return mesonet_model
 
 # ENDPOINT 1: Health Check
 # Simple endpoint to verify the backend is running
@@ -120,6 +128,16 @@ def predict_image(image_array: np.ndarray) -> Dict:
     INPUT: Image array (from file upload)
     OUTPUT: {"label": "FAKE", "confidence": 0.92, "raw_prediction": 0.92}
     """
+    # Step 0: Get (or load) the model
+    model = get_mesonet_model()
+    if model is None:
+        return {
+            "label": "UNKNOWN",
+            "confidence": 0.0,
+            "raw_prediction": None,
+            "error": "MesoNet model not available"
+        }
+    
     # Step 1: Preprocess the image
     _, normalized = preprocess_image(image_array)
     
@@ -129,7 +147,7 @@ def predict_image(image_array: np.ndarray) -> Dict:
     
     # Step 3: Run prediction
     # Model outputs: 0 = REAL, 1 = FAKE
-    prediction = mesonet_model.predict(img_batch, verbose=0)[0][0]
+    prediction = model.predict(img_batch, verbose=0)[0][0]
     
     # Step 4: Calculate confidence (how sure is the model?)
     # If prediction is 0.90 → confidence is how far from 0.5 decision boundary
